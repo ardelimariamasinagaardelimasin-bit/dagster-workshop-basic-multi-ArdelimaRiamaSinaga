@@ -8,7 +8,9 @@ products, orders).
 
 - Docker Desktop (or Docker Engine + Docker Compose)
 
-## Quickstart
+## How to Run
+
+### Option A: Docker (recommended)
 
 ```bash
 docker compose up --build
@@ -16,10 +18,68 @@ docker compose up --build
 
 Then open http://localhost:3000. On first boot the container generates a fake
 retail dataset into `data/` (50 customers, 20 products, 500 orders over the
-last 30 days).
+last 30 days) — see `docker_entrypoint.py`.
 
-In the UI, select all three assets and click "Materialize all" to run the
-pipeline end to end.
+In the UI, select all three assets (`raw_orders`, `cleaned_orders`,
+`daily_revenue`) and click "Materialize all" to run the pipeline end to end.
+You can also run the whole chain as a single job from the UI's Jobs tab by
+launching `all_assets_job`, or trigger it on-demand from the Schedules tab
+without waiting for the 06:00 cron fire.
+
+Stop the container with `Ctrl+C`, or `docker compose down` to remove it.
+
+### Option B: Local Python (no Docker)
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows; use `source .venv/bin/activate` on macOS/Linux
+pip install -r requirements.txt
+python seed_data.py           # only needed once, or whenever you want fresh fake data
+dagster dev -f definitions.py
+```
+
+Then open http://localhost:3000 and materialize assets the same way as above.
+
+## How to Verify the Run
+
+A materialization is only "done" once you've confirmed it actually produced
+correct output — checking the UI alone isn't enough since a run can succeed
+with stale or empty data.
+
+1. **Check run status in the UI.** After materializing, the Dagster UI shows
+   each asset with a green "Materialized" state and a timestamp. Click into
+   the run (Runs tab) to see the full step-by-step log; any failure shows up
+   here as a red step with a stack trace.
+
+2. **Inspect the output file.** `daily_revenue` writes its result to
+   `data/daily_revenue.csv` via the `Warehouse` resource. After a successful
+   run:
+
+   ```bash
+   cat data/daily_revenue.csv        # macOS/Linux
+   type data\daily_revenue.csv       # Windows
+   ```
+
+   You should see one row per `order_date` with a non-empty `revenue` column,
+   covering the last 30 days that `seed_data.py` generated.
+
+3. **Check container/process logs.** With Docker, `docker compose logs -f`
+   streams the same step logs shown in the UI — useful if the UI itself is
+   unreachable. Locally, the `dagster dev` process prints them directly to
+   the terminal it's running in.
+
+4. **Run the test suite.** The tests don't require the UI or Docker and check
+   the pipeline logic in isolation (asset transformations, resource I/O, and
+   that `Definitions` wires up the expected assets/job/schedule):
+
+   ```bash
+   pip install -r requirements.txt   # if not already installed
+   pytest
+   ```
+
+   All tests passing confirms the code is correct even before you materialize
+   anything by hand; materializing in the UI then confirms the wiring and
+   environment (Docker, ports, volumes) also work end to end.
 
 ## What just happened
 
