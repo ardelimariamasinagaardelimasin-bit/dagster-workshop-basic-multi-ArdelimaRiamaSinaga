@@ -10,3 +10,9 @@ daily_refresh = ScheduleDefinition(
 
 # TODO(exercise-2): add a second ScheduleDefinition here (e.g. an hourly
 # refresh) — see docs/exercises.md
+
+hourly_refresh = ScheduleDefinition(
+    name="hourly_refresh",
+    job=all_assets_job,
+    cron_schedule="0 * * * *",
+)
